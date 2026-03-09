@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"> <title>SQL State Handler Test</title>
+</head>
+<body>
+    <h2>Azure SQL State Controller</h2>
+    <div id="output" style="font-family: monospace; background: #f4f4f4; padding: 10px; border: 1px solid #ccc;">
+        Initializing...<br>
+    </div>
+
+    <script>
+        const BASE_URL = "https://zard007-sql-degngyazh7checcb.eastus2-01.azurewebsites.net/api/StateHandler";
+
+        const output = document.getElementById('output');
+		// Remove the hardcoded key
+		let FUNCTION_KEY = localStorage.getItem('azure_key');
+
+		if (!FUNCTION_KEY) {
+			FUNCTION_KEY = prompt("Please enter your Azure Function Key:");
+			if (FUNCTION_KEY) {
+				localStorage.getItem('azure_key', FUNCTION_KEY);
+			}
+		}
+
+        // Helper to log text to the screen without a "return" (newline)
+        function log(message, addNewline = true) {
+            output.innerHTML += message + (addNewline ? "<br>" : "");
+        }
+
+        // 1. GET current state (Equivalent to get_state)
+        async function getState() {
+            const url = `${BASE_URL}?operation=get&code=${FUNCTION_KEY}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            return data;
+        }
+
+        // 2. UPDATE state (Equivalent to update_state)
+        async function updateState(value) {
+            const url = `${BASE_URL}?code=${FUNCTION_KEY}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ "operation": "update", "value": value })
+            });
+            return await response.json();
+        }
+
+        // 3. Test Sequence (Running the logic)
+        async function runTest() {
+            try {
+				log("🔄 Initializing system... resetting to 'idle'.");
+				await updateState("idle");
+
+				// --- STEP 2: VERIFY RESET ---
+				const initial = await getState();
+                
+                log(`📖 Current State: <b>${initial.value}</b>`);
+
+                log(`✏️ Updating to 'Buy 5'... `, false); // No newline yet
+                const updateResult = await updateState("Buy 5");
+                log(`Result: ${JSON.stringify(updateResult)}`);
+
+                const final = await getState();
+                log(`📖 Final State: <b>${final.value}</b>`);
+            } catch (error) {
+                log(`<span style="color:red">❌ Error: ${error.message}</span>`);
+            }
+        }
+
+        updateState("idle");
+    </script>
+    
+    <div style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px;">
+		<label for="shareCount"><b>Number of Shares:</b></label>
+		<input type="number" id="shareCount" value="5" style="width: 60px; padding: 5px; margin-right: 10px;">
+    
+		<br><br>
+    
+		<button onclick="handleTrade('BuyO')" style="padding: 10px 20px; background: #28a745; color: white; border: none; cursor: pointer;">Buy Opened</button>
+		<button onclick="handleTrade('BuyF')" style="padding: 10px 20px; background: #dc3545; color: white; border: none; cursor: pointer;">Buy Filled</button>
+		<button onclick="handleTrade('Cancel')" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer;">Cancel</button>
+	</div>
+
+	<script>
+		async function handleTrade(action) {
+			const shareInput = document.getElementById('shareCount');
+			const count = shareInput.value;
+        
+			// Build the string: "Buy 5" or just "Cancel"
+			let finalValue = action;
+			finalValue = `${action} ${count}`;
+			
+
+			log(`\n🚀 Sending: <b>${finalValue}</b>... `, false);
+
+			try {
+				const result = await updateState(finalValue);
+				log(`Success!`);
+            
+				// Immediately verify the database state
+				const current = await getState();
+				log(`📖 DB Verified State: <span style="color:blue">${current.value}</span>`);
+			} catch (err) {
+				log(`<span style="color:red">❌ Failed: ${err.message}</span>`);
+			}
+		}
+	</script>
+
+	<script>
+		// New function to handle button clicks
+		async function handleButtonClick(val) {
+			log(`\n🖱️ Button clicked: ${val}... `, false);
+			try {
+				const result = await updateState(val);
+				log(`Success! New state is ${val}.`);
+            
+				// Refresh the display
+				const current = await getState();
+				log(`📖 Confirmed in DB: <b>${current.value}</b>`);
+			} catch (err) {
+				log(`❌ Failed: ${err.message}`);
+			}
+		}
+	</script>
+</body>
+</html>
