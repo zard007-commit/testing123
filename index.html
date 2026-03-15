@@ -6,31 +6,52 @@
 </head>
 <body>
     <h2>Azure VM State Controller</h2>
+
+    <div style="margin-bottom: 15px; padding: 10px; background: #e9ecef; border-radius: 5px;">
+        <strong>Target Endpoint:</strong>
+        <label style="margin-left: 10px;">
+            <input type="radio" name="endpoint" value="PushToVM" checked onchange="updateBaseUrl()"> Database (PushToVM)
+        </label>
+        <label style="margin-left: 10px;">
+            <input type="radio" name="endpoint" value="PushToVM2" onchange="updateBaseUrl()"> Live VM (PushToVM2)
+        </label>
+    </div>
+
     <div id="output" style="font-family: monospace; background: #f4f4f4; padding: 10px; border: 1px solid #ccc; height: 200px; overflow-y: scroll;">
         Initializing...<br>
     </div>
 
     <script>
-        const BASE_URL = "https://winfast-func-hscebgb6hkgzbrgd.eastus2-01.azurewebsites.net/api/PushToVM";
+        // Use your specific Azure Function base domain
+        const DOMAIN = "https://winfast-func-hscebgb6hkgzbrgd.eastus2-01.azurewebsites.net/api/";
+        let CURRENT_URL = DOMAIN + "PushToVM";
+
         const output = document.getElementById('output');
 
-        // --- FIX 1: Corrected localStorage.setItem ---
+        // Function to switch URLs when radio button changes
+        function updateBaseUrl() {
+            const selected = document.querySelector('input[name="endpoint"]:checked').value;
+            CURRENT_URL = DOMAIN + selected;
+            log(`📡 Switched endpoint to: <b>${selected}</b>`);
+        }
+
+        // --- Azure Key Logic ---
         let FUNCTION_KEY = localStorage.getItem('azure_key');
         if (!FUNCTION_KEY) {
             FUNCTION_KEY = prompt("Please enter your Azure Function Key:");
             if (FUNCTION_KEY) {
-                localStorage.setItem('azure_key', FUNCTION_KEY); // Fixed from getItem
+                localStorage.setItem('azure_key', FUNCTION_KEY);
             }
         }
 
         function log(message, addNewline = true) {
             output.innerHTML += message + (addNewline ? "<br>" : "");
-            output.scrollTop = output.scrollHeight; // Auto-scroll to bottom
+            output.scrollTop = output.scrollHeight; 
         }
 
         // --- GET status ---
         async function getState() {
-            const url = `${BASE_URL}?code=${FUNCTION_KEY}`;
+            const url = `${CURRENT_URL}?code=${FUNCTION_KEY}`;
             try {
                 const response = await fetch(url);
                 const text = await response.text();
@@ -42,7 +63,7 @@
 
         // --- POST update ---
         async function updateState(value) {
-            const url = `${BASE_URL}?code=${FUNCTION_KEY}`;
+            const url = `${CURRENT_URL}?code=${FUNCTION_KEY}`;
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -74,21 +95,19 @@
             const count = shareInput.value;
             let finalValue = action === 'Cancel' ? action : `${action} ${count}`;
 
-            log(`\n🚀 Sending: <b>${finalValue}</b>... `, false);
+            log(`\n🚀 Sending to ${document.querySelector('input[name="endpoint"]:checked').value}: <b>${finalValue}</b>... `, false);
 
             try {
                 const result = await updateState(finalValue);
                 log(`Success!`);
 
-                // Only try to verify if the VM command was actually triggered
                 const current = await getState();
-                log(`📖 Last Known State: <span style="color:blue">${current.value || "Sent"}</span>`);
+                log(`📖 Verification: <span style="color:blue">${current.value || "Sent"}</span>`);
             } catch (err) {
                 log(`<span style="color:red">❌ Failed: ${err.message}</span>`);
             }
         }
 
-        // Initialize log
         log("System Ready. Waiting for command...");
     </script>
 </body>
