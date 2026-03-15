@@ -28,32 +28,31 @@
             output.scrollTop = output.scrollHeight; // Auto-scroll to bottom
         }
 
-        // --- FIX 2: Text-first Fetch to avoid "Unexpected end of JSON" ---
+        // --- GET status ---
         async function getState() {
-            const url = `${BASE_URL}?operation=get&code=${FUNCTION_KEY}`;
+            const url = `${BASE_URL}?code=${FUNCTION_KEY}`;
             try {
                 const response = await fetch(url);
                 const text = await response.text();
-                return text ? JSON.parse(text) : { value: "No Data" };
+                return { value: text };
             } catch (e) {
                 return { value: "Error" };
             }
         }
 
+        // --- POST update ---
         async function updateState(value) {
             const url = `${BASE_URL}?code=${FUNCTION_KEY}`;
             const response = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ "operation": "update", "value": value })
+                body: JSON.stringify({ state: value })
             });
 
             const text = await response.text();
             if (!response.ok) throw new Error(text || "Server Error");
 
-            // Return parsed JSON if possible, otherwise raw text
-            try { return JSON.parse(text); }
-            catch (e) { return { status: "Success", raw: text }; }
+            return { status: "Success", raw: text };
         }
     </script>
 
