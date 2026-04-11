@@ -5,7 +5,7 @@
     <title>VM State Handler Dashboard</title>
 </head>
 <body>
-    <h2>Azure VM State Controller</h2>
+    <h2>My Stock State</h2>
 
     <div style="margin-bottom: 15px; padding: 10px; background: #e9ecef; border-radius: 5px;">
         <strong>Target Endpoint:</strong>
@@ -101,7 +101,10 @@
         async function handleTrade(action) {
             const shareInput = document.getElementById('shareCount');
             const count = shareInput.value;
-            let finalValue = action === 'Exit' ? action : `${action} ${count}`;
+            
+            const accountInput = document.getElementById('accountSelect');
+            const account = accountInput.value;
+            let finalValue = action === 'Exit' ? action : `${action} ${count} ${account}`;
 
             log(`\n🚀 Sending to ${document.querySelector('input[name="endpoint"]:checked').value}: <b>${finalValue}</b>... `, false);
 
