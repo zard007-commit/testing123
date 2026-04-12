@@ -2,75 +2,132 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Schwab Web Monitor</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f4f4f9; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        input, select, button { padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
-        button { background: #0078d4; color: white; cursor: pointer; border: none; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background: #f0f2f5; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 20px; align-items: end; }
+        input, select, button { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 100%; }
+        button { background: #0078d4; color: white; border: none; cursor: pointer; font-weight: bold; }
         button:hover { background: #005a9e; }
-        #display { font-family: monospace; white-space: pre; background: #eee; padding: 15px; margin-top: 20px; }
+        #chain-display { font-family: 'Courier New', Courier, monospace; background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 5px; white-space: pre; overflow-x: auto; height: 300px; }
+        .green { color: #4ec9b0; }
+        .red { color: #f44747; }
     </style>
 </head>
 <body>
 
-<div class="card">
+<div class="container">
     <h2>Schwab Option Monitor</h2>
-    <div class="grid">
-        <div>
-            <label>Symbol</label><br>
+    
+    <div class="controls">
+        <div><label>Symbol</label>
             <select id="symbol">
-                <option value="HLF">HLF</option>
-                <option value="GME">GME</option>
-                <option value="JD">JD</option>
-                <option value="SMCI">SMCI</option>
+                <option value="HLF">HLF</option><option value="GME">GME</option><option value="JD">JD</option>
             </select>
         </div>
-        <div>
-            <label>Qty</label><br>
-            <input type="number" id="qty" value="5">
-        </div>
-        <div>
-            <label>Account</label><br>
-            <select id="acct">
-                <option value="0">Account 1</option>
-                <option value="1">Account 2</option>
-            </select>
-        </div>
-        <div style="align-self: end;">
-            <button onclick="placeOrder()">Place Spread</button>
-        </div>
+        <div><label>Exp Date</label><select id="exp-date"></select></div>
+        <div><button onclick="fetchChain()">Update Data</button></div>
     </div>
-    <div id="display">Results will appear here...</div>
+
+    <div id="price-header" style="font-weight: bold; margin-bottom: 10px;">Price: --</div>
+    <div id="chain-display">Select a symbol and update...</div>
+
+    <h3 style="margin-top:20px;">Quick Trade</h3>
+    <div class="controls">
+        <div><label>Strike</label><select id="strike-cb" onchange="updateLimitPrice()"></select></div>
+        <div><label>Limit</label><input type="number" id="limit-price" step="0.01"></div>
+        <div><label>Qty</label><input type="number" id="qty" value="5"></div>
+        <div><label>Acct</label><select id="acct"><option value="0">0</option><option value="1">1</option></select></div>
+        <div><button style="background: #28a745;" onclick="placeOrder()">Place Order</button></div>
+    </div>
 </div>
 
 <script>
-    async function placeOrder() {
-        const data = {
-            symbol: document.getElementById('symbol').value,
-            qty: document.getElementById('qty').value,
-            acct_index: document.getElementById('acct').value,
-            // You can add strike and price logic here
-        };
+    // Configuration - Replace with your Python Server URL
+    const API_BASE = "https://your-python-api-server.com";
+    let vpriceMap = {};
 
-        const display = document.getElementById('display');
-        display.innerText = "Sending order to Azure...";
-
-        try {
-            // Replace this URL with your actual Azure Function Endpoint
-            const response = await fetch('https://your-azure-app.azurewebsites.net/api/placeOrder', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            
-            const result = await response.json();
-            display.innerText = "Server Response: " + JSON.stringify(result, null, 2);
-        } catch (err) {
-            display.innerText = "Error: " + err.message;
+    // 1. Populate Fridays
+    function setupDates() {
+        const select = document.getElementById('exp-date');
+        const today = new Date();
+        let found = 0;
+        for (let i = 0; i < 30 && found < 5; i++) {
+            let d = new Date(); d.setDate(today.getDate() + i);
+            if (d.getDay() === 5) { // Friday
+                let dateStr = d.toISOString().split('T')[0];
+                select.add(new Option(dateStr, dateStr));
+                found++;
+            }
         }
     }
+
+    // 2. Fetch Data from Server
+    async function fetchChain() {
+        const symbol = document.getElementById('symbol').value;
+        const date = document.getElementById('exp-date').value;
+        const display = document.getElementById('chain-display');
+        
+        display.innerHTML = "Fetching...";
+        
+        try {
+            const resp = await fetch(`${API_BASE}/get_chain?symbol=${symbol}&date=${date}`);
+            const data = await resp.json();
+            
+            document.getElementById('price-header').innerText = `${symbol} Current Price: $${data.underlying_price.toFixed(2)}`;
+            
+            // Build Display and Update Strike List
+            let output = `Strike     | Bid      | Ask      | Mid      | Vert-Mid\n${"-".repeat(50)}\n`;
+            const strikeCb = document.getElementById('strike-cb');
+            strikeCb.innerHTML = "";
+            vpriceMap = {};
+
+            data.strikes.forEach(s => {
+                const color = s.v_price > 0.4 ? "green" : "red";
+                output += `<span class="${color}">${s.key.padEnd(10)} | ${s.bid.toFixed(2).padEnd(8)} | ${s.ask.toFixed(2).padEnd(8)} | ${s.mark.toFixed(2).padEnd(8)} | ${s.v_price.toFixed(2)}</span>\n`;
+                
+                if (s.v_price > 0) {
+                    strikeCb.add(new Option(s.key, s.key));
+                    vpriceMap[s.key] = s.v_price;
+                }
+            });
+            display.innerHTML = output;
+            updateLimitPrice();
+        } catch (e) { display.innerText = "Error fetching data."; }
+    }
+
+    function updateLimitPrice() {
+        const val = vpriceMap[document.getElementById('strike-cb').value];
+        document.getElementById('limit-price').value = val ? val.toFixed(2) : "0.30";
+    }
+
+    // 3. Place Order via Server
+    async function placeOrder() {
+        const payload = {
+            symbol: document.getElementById('symbol').value,
+            strike: document.getElementById('strike-cb').value,
+            limit: document.getElementById('limit-price').value,
+            qty: document.getElementById('qty').value,
+            acct_index: document.getElementById('acct').value,
+            exp_date: document.getElementById('exp-date').value
+        };
+
+        if(!confirm(`Send order for ${payload.qty} spreads?`)) return;
+
+        try {
+            const resp = await fetch(`${API_BASE}/place_order`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const result = await resp.json();
+            alert("Response: " + JSON.stringify(result));
+        } catch (e) { alert("Execution Failed"); }
+    }
+
+    setupDates();
 </script>
 </body>
 </html>
