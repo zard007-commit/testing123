@@ -21,6 +21,39 @@
         Initializing...<br>
     </div>
 
+    <div style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px;">
+        <label for="accountSelect"><b>Account #:</b></label>
+        <select id="accountSelect" style="width: 80px; padding: 5px; margin-right: 10px;">
+            <option value="0">0</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+        </select>
+
+        <br><br>
+
+        <label for="shareCount"><b>Number of Shares:</b></label>
+        <input type="number" id="shareCount" value="5" style="width: 60px; padding: 5px; margin-right: 10px;">
+        
+        <br><br>
+        
+        <label for="symbol"><b>Symbol:</b></label>
+        <input type="text" id="symbol" value="HLF" style="width: 80px; padding: 5px; margin-right: 10px;">
+        
+        <br><br>
+        
+        <button onclick="handleTrade('BuyO')" style="padding: 10px 20px; background: #28a745; color: white; border: none; cursor: pointer;">Buy Opened</button>
+        <button onclick="handleTrade('BuyF')" style="padding: 10px 20px; background: #dc3545; color: white; border: none; cursor: pointer;">Buy Filled</button>
+        <button onclick="handleTrade('Replace')" style="padding: 10px 20px; background: #b4a7d6; color: white; border: none; cursor: pointer;">Replace</button>
+        
+        <br><br>
+        
+        <button onclick="handleTrade('CancelSymbol')" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer;">Del_by_Symbol</button>
+        <button onclick="handleTrade('Cancel')" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer;">Cancel</button>
+        <button onclick="handleTrade('Exit')" style="padding: 10px 20px; background: #22757d; color: white; border: none; cursor: pointer;">Exit</button>
+        <button onclick="handleTrade('Idle')" style="padding: 10px 20px; background: #ffc107; color: black; border: none; cursor: pointer;">Idle</button>
+        <button onclick="localStorage.removeItem('azure_key'); location.reload();" style="margin-left:10px; font-size: 10px;">Reset Key</button>
+    </div>
+
     <script>
         // Use your specific Azure Function base domain
         const DOMAIN = "https://winfast-func-hscebgb6hkgzbrgd.eastus2-01.azurewebsites.net/api/";
@@ -75,53 +108,44 @@
 
             return { status: "Success", raw: text };
         }
-    </script>
 
-    <div style="margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 8px;">
-		<label for="accountSelect"><b>Account #:</b></label>
-		<select id="accountSelect" style="width: 80px; padding: 5px; margin-right: 10px;">
-        <option value="0">0</option>
-        <option value="1">1</option>
-        <option value="2">2</option>
-		</select>
-
-    <br><br>
-        <label for="shareCount"><b>Number of Shares:</b></label>
-        <input type="number" id="shareCount" value="5" style="width: 60px; padding: 5px; margin-right: 10px;">
-        <br><br>
-        <label for="Symbol"><b>Symbol:</b></label>
-        <input type="text" id="Symbol" value="HLF" style="width: 60px; padding: 5px; margin-right: 10px;">
-        <br><br>
-        <button onclick="handleTrade('BuyO')" style="padding: 10px 20px; background: #28a745; color: white; border: none; cursor: pointer;">Buy Opened</button>
-        <button onclick="handleTrade('BuyF')" style="padding: 10px 20px; background: #dc3545; color: white; border: none; cursor: pointer;">Buy Filled</button>
-        <button onclick="handleTrade('Replace')" style="padding: 10px 20px; background: #b4a7d6; color: white; border: none; cursor: pointer;">Replace</button>
-        <br><br>
-        <button onclick="handleTrade('CancelSymbol')" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer;">Del_by_Symbol</button>
-        <button onclick="handleTrade('Cancel')" style="padding: 10px 20px; background: #6c757d; color: white; border: none; cursor: pointer;">Cancel</button>
-        <button onclick="handleTrade('Exit')" style="padding: 10px 20px; background: #22757d; color: white; border: none; cursor: pointer;">Exit</button>
-        <button onclick="localStorage.removeItem('azure_key'); location.reload();" style="margin-left:10px; font-size: 10px;">Reset Key</button>
-    </div>
-
-    <script>
         async function handleTrade(action) {
-            const shareInput = document.getElementById('shareCount');
-            const count = shareInput.value;
+            // Get values from input fields
+            const shareCount = document.getElementById('shareCount').value;
+            const accountSelect = document.getElementById('accountSelect').value;
+            const symbol = document.getElementById('symbol').value;
             
-            const accountInput = document.getElementById('accountSelect');
-            const account = accountInput.value;
-            const accountInput = document.getElementById('Symbol');
-            const symbol = accountInput.value;
+            let finalValue;
             
-            let finalValue = action === 'Exit' ? action : `${action} ${count} ${account} {symbol}`;
+            // Build the command string based on action
+            switch(action) {
+                case 'Exit':
+                    finalValue = 'Exit';
+                    break;
+                //case 'CancelSymbol':
+                //    finalValue = `CancelSymbol ${symbol}`;
+                //    break;
+                //case 'Cancel':
+                //    finalValue = `Cancel ${shareCount}`;
+                //    break;
+                case 'Idle':
+                    finalValue = 'idle';
+                    break;
+                default:
+                    finalValue = `${action} ${shareCount} ${accountSelect} ${symbol}`;
+            }
 
             log(`\n🚀 Sending to ${document.querySelector('input[name="endpoint"]:checked').value}: <b>${finalValue}</b>... `, false);
 
             try {
                 const result = await updateState(finalValue);
-                log(`Success!`);
+                log(`✅ Success!`);
 
-                const current = await getState();
-                log(`📖 Verification: <span style="color:blue">${current.value || "Sent"}</span>`);
+                // Wait a moment then verify
+                setTimeout(async () => {
+                    const current = await getState();
+                    log(`📖 Verification: <span style="color:blue">${current.value || "Sent"}</span>`);
+                }, 500);
             } catch (err) {
                 log(`<span style="color:red">❌ Failed: ${err.message}</span>`);
             }
